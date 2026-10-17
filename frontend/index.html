@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CyberRange - Multi-Attack Cyber Range (DDoS, Brute Force, SQLi, Ransomware, MITM)</title>
+<style>
+/* ---------- page shell ---------- */
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: #070b14;
+  color: #d6deeb;
+  font: 13px system-ui, sans-serif;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+header {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 14px;
+  background: #0c1322;
+  border-bottom: 1px solid #1c2a44;
+}
+header b { font-size: 15px; color: #4cc9f0; }
+#score { margin-left: auto; font: 700 16px monospace; color: #ffd166; }
+#phase { color: #ff8fa3; }
+
+main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 270px 1fr 300px;
+  min-height: 0;
+}
+
+aside {
+  background: #0a101d;
+  padding: 10px;
+  overflow: auto;
+  border-right: 1px solid #1c2a44;
+}
+aside + section + aside {
+  border-left: 1px solid #1c2a44;
+  border-right: 0;
+}
+
+h3 {
+  margin: 12px 0 6px;
+  font-size: 11px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: #7a8bb0;
+}
+
+/* ---------- buttons ---------- */
+button {
+  background: #14203a;
+  color: #d6deeb;
+  border: 1px solid #2a3b60;
+  border-radius: 6px;
+  padding: 7px 9px;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  margin-bottom: 5px;
+  font: inherit;
+}
+button:hover:not(:disabled) { border-color: #4cc9f0; }
+button:disabled { opacity: .4; cursor: default; }
+button small { display: block; color: #7a8bb0; margin-top: 2px; }
+
+.trap { border-color: #7a2a3a; }
+.pts { float: right; color: #06d6a0; }
+.trap .pts { color: #ef476f; }
+
+/* ---------- scenario picker (left rail) ---------- */
+.cat {
+  margin: 10px 0 4px;
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: #4cc9f0;
+}
+
+#sess { display: none; gap: 4px; margin-left: 8px; }
+.tb {
+  width: auto;
+  display: inline-block;
+  padding: 3px 8px;
+  margin: 0;
+  font-size: 11px;
+}
+
+/* ---------- centre: the 3D range ---------- */
+#cv { position: relative; min-width: 0; }
+#cv canvas { display: block; }
+
+#hint {
+  position: absolute;
+  left: 10px;
+  bottom: 8px;
+  color: #58688c;
+  font-size: 11px;
+  pointer-events: none;
+}
+
+/* device inspector - pinned to the bottom-right corner of the range.
+   It is plain DOM, so orbiting the scene never moves it. */
+#nb {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 5;
+  background: #0c1322e8;
+  border: 1px solid #2a3b60;
+  border-radius: 8px;
+  padding: 10px;
+  width: 250px;
+  display: none;
+}
+#nb b { color: #4cc9f0; }
+#ni { margin: 6px 0; color: #9fb0d0; }
+#ni b { color: #d6deeb; }
+.nb_ev {
+  margin-top: 4px;
+  padding-left: 6px;
+  border-left: 2px solid #2a3b60;
+  color: #9fb0d0;
+  font-size: 10px;
+  line-height: 1.4;
+}
+.nb_ev.quiet { border-left-color: #1c2a44; color: #58688c; }
+
+/* jargon clouds - float at the top-right of the range on their own layer */
+#toasts {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 6;
+  width: 275px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+.toast {
+  position: relative;
+  background: #101a30f2;
+  border: 1px solid #2a3b60;
+  border-radius: 20px 20px 6px 20px;
+  padding: 9px 13px;
+  font-size: 11px;
+  line-height: 1.45;
+  box-shadow: 0 6px 18px #0009;
+  animation: tin .25s ease;
+}
+.toast::after {
+  content: '';
+  position: absolute;
+  left: 20px;
+  bottom: -6px;
+  width: 11px;
+  height: 11px;
+  background: #101a30f2;
+  border-right: 1px solid #2a3b60;
+  border-bottom: 1px solid #2a3b60;
+  transform: rotate(45deg);
+}
+.toast b { display: block; color: #4cc9f0; margin-bottom: 2px; }
+.toast span { color: #9fb0d0; }
+@keyframes tin {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ---------- right rail: meters, graph, SIEM log ---------- */
+canvas#ch {
+  width: 100%;
+  height: 90px;
+  background: #050912;
+  border: 1px solid #1c2a44;
+  border-radius: 6px;
+}
+.ginfo {
+  font-size: 10px;
+  line-height: 1.55;
+  color: #7a8bb0;
+  margin-top: 6px;
+}
+
+.m { margin: 5px 0; }
+.m span { display: flex; justify-content: space-between; font-size: 11px; }
+.m i { display: block; height: 7px; background: #1a2540; border-radius: 4px; margin-top: 2px; overflow: hidden; }
+.m u { display: block; height: 100%; transition: width .3s; }
+
+#log { font: 11px monospace; max-height: 230px; overflow: auto; }
+#log div { padding: 3px 0; border-bottom: 1px solid #131d33; }
+.bad  { color: #ff6b81; }
+.ok   { color: #06d6a0; }
+.warn { color: #ffd166; }
+
+/* ---------- end-of-run report ---------- */
+#modal {
+  position: fixed;
+  inset: 0;
+  background: #000b;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+#modal > div {
+  background: #0c1322;
+  border: 1px solid #2a3b60;
+  border-radius: 12px;
+  padding: 20px;
+  width: min(560px, 92vw);
+  max-height: 86vh;
+  overflow: auto;
+}
+.fb {
+  padding: 6px 8px;
+  margin: 5px 0;
+  border-left: 3px solid #4cc9f0;
+  background: #101a30;
+}
+.fb.mistake { border-color: #ef476f; }
+.fb.missed  { border-color: #ffd166; }
+
+/* ---------- email training ---------- */
+#quiz {
+  position: fixed;
+  inset: 0;
+  background: #000a;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 6;
+}
+#quiz .qc {
+  position: relative;
+  background: #0c1322;
+  border: 1px solid #2a3b60;
+  border-radius: 12px;
+  padding: 18px;
+  width: min(600px, 94vw);
+  max-height: 88vh;
+  overflow: auto;
+}
+.qclose {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: auto;
+  margin: 0;
+  padding: 3px 9px;
+  text-align: center;
+}
+#qbar { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #7a8bb0; }
+#qmail {
+  background: #101a30;
+  border: 1px solid #2a3b60;
+  border-radius: 8px;
+  padding: 12px;
+  margin: 10px 0;
+  font: 12px/1.55 ui-monospace, monospace;
+  white-space: pre-wrap;
+  color: #d6deeb;
+}
+.qb { width: 32%; margin-right: 1%; }
+#qfeed {
+  display: none;
+  padding: 8px 10px;
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  border-left: 3px solid #4cc9f0;
+  background: #101a30;
+}
+#qfeed.bad { border-color: #ef476f; }
+
+@media (max-width: 900px) {
+  main { grid-template-columns: 1fr; grid-template-rows: auto 55vh auto; }
+  aside { border: 0; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <b>CYBERRANGE</b>
+  <span>Simulated cyber-security training: no real systems are attacked</span>
+  <span id="phase"></span>
+  <span id="time"></span>
+  <span id="sess">
+    <button id="pauseb" class="tb" onclick="pauseToggle()">&#9208; Pause</button>
+    <button class="tb" onclick="send({type:'restart'})" title="Restart this same scenario from the top">&#8635; Restart</button>
+    <button class="tb" onclick="send({type:'abort'})" title="End this session">&#10005;</button>
+  </span>
+  <span id="score">SCORE 0</span>
+</header>
+
+<main>
+
+  <!-- ============ left rail: scenarios + defensive actions ============ -->
+  <aside>
+    <h3>Scenarios &mdash; by category</h3>
+    <div id="scen"><small style="color:#58688c">Connecting to backend...</small></div>
+
+    <h3>Defensive actions</h3>
+    <div id="acts"><small style="color:#58688c">Pick a scenario to begin.</small></div>
+
+    <h3>Trainer view</h3>
+    <label><input type="checkbox" onchange="$('tr').style.display=this.checked?'block':'none'"> Instructor controls</label>
+    <div id="tr" style="display:none;margin-top:6px">
+      <button onclick="pauseToggle()">Pause / resume the clock</button>
+      <button onclick="send({type:'restart'})">Restart the scenario</button>
+      <button onclick="send({type:'trainer',event:'surge'})">Inject attack surge (+60% for 8s)</button>
+      <button onclick="send({type:'trainer',event:'skip'})">Skip to the next phase</button>
+      <button onclick="send({type:'trainer',event:'extra'})">Add +15s bonus time</button>
+      <button onclick="send({type:'trainer',event:'alert'})">Inject a critical SIEM alert</button>
+      <button onclick="send({type:'trainer',event:'grade'})">Grade &amp; finish now</button>
+      <button onclick="send({type:'abort'})">End session early</button>
+    </div>
+  </aside>
+
+  <!-- ============ centre: the 3D range ============ -->
+  <section id="cv">
+    <div id="hint">Drag to orbit, scroll to zoom, click a device to inspect/isolate it</div>
+    <div id="nb">
+      <b id="nn"></b>
+      <div id="ni" style="margin:6px 0;color:#9fb0d0"></div>
+      <button id="nbtn" onclick="iso()">Isolate device</button>
+    </div>
+    <div id="toasts"></div>
+  </section>
+
+  <!-- ============ right rail: graph, meters, SIEM log ============ -->
+  <aside>
+    <h3>Traffic graph &mdash; requests per second</h3>
+    <canvas id="ch" width="280" height="90"></canvas>
+    <div class="ginfo"><b style="color:#06d6a0">Green</b> &rarr; real users' requests arriving (protect this line). <b style="color:#ff6b81">Red</b> &rarr; attack traffic arriving at your edge. <b style="color:#ff9f1c">Orange</b> &rarr; attack traffic that got past your defences &mdash; you want this flat at zero. The gap between red and orange is what your defences are blocking right now; the grey label shows the busiest second so far.</div>
+    <div id="stats" style="font:11px monospace;margin-top:6px;line-height:1.5"></div>
+
+    <h3>Live meters</h3>
+    <div id="meters"></div>
+
+    <h3>SIEM / event log</h3>
+    <div id="log"></div>
+    <div style="margin-top:8px;display:flex;gap:6px">
+      <button onclick="exportLog()" style="width:auto">Export session log</button>
+    </div>
+    <div style="margin-top:6px;color:#58688c;font-size:10px">Server also writes <b>logs/siem_events.log</b> and <b>logs/blocked_traffic.csv</b></div>
+  </aside>
+
+</main>
+
+<!-- ============ email training ============ -->
+<div id="quiz">
+  <div class="qc">
+    <button class="qclose" onclick="closeQuiz()" title="Close email training and go back to the range">&#10005;</button>
+    <div id="qbar"></div>
+    <h3 style="margin:6px 0 0">Classify this email</h3>
+    <div id="qmail"></div>
+    <div>
+      <button class="qb" onclick="ans('genuine')">&#9989; Genuine</button>
+      <button class="qb" onclick="ans('phishing')">&#127907; Phishing</button>
+      <button class="qb" onclick="ans('spam')">&#128465; Spam</button>
+    </div>
+    <div id="qfeed"></div>
+    <button id="qnext" onclick="send({type:'quiz_next'})" style="display:none;margin-top:10px">Next email &rarr;</button>
+  </div>
+</div>
+
+<!-- ============ end-of-run report ============ -->
+<div id="modal">
+  <div>
+    <h2 id="et"></h2>
+    <p id="em"></p>
+    <p>Final score: <b id="es" style="color:#ffd166"></b></p>
+    <div id="ef"></div>
+    <button onclick="$('modal').style.display='none'" style="margin-top:10px">Close</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* ================================================================
+   CyberRange front-end
+   ----------------------------------------------------------------
+   left rail  : scenario picker + defensive actions + trainer tools
+   centre     : the 3D range (orbit, zoom, click a device)
+   right rail : traffic graph, live meters, SIEM log
+   ================================================================ */
+
+const $ = id => document.getElementById(id);
+
+// --- shared state -------------------------------------------------
+let ws;                       // backend websocket
+let scene, cam, ren;          // three.js scene, camera, renderer
+let meshes = {};              // node id -> {g, m, type, n, terms}
+let info = {};                // node id -> {load, status, sent, recv, seen}
+let pk = [];                  // live packets travelling along an edge
+let hist = [];                // chart samples, one [legit, arriving, passed] per tick
+let sel = null;               // node currently open in the inspector
+let edges = [];
+let dur = 70;                 // scenario length in seconds
+
+// device colours per node type
+const COL = {
+  attacker: 0xef476f,
+  users: 0x06d6a0,
+  server: 0x4cc9f0,
+  router: 0x4895ef,
+  firewall: 0xff9f1c,
+  database: 0xffd166,
+  monitor: 0xb388eb,
+  workstation: 0xffa69e
+};
+
+// status colours - they override the type colour while a device is in that state
+const ST = {
+  warning: 0xffd166,
+  critical: 0xff7f11,
+  down: 0x444444,
+  compromised: 0xd00060,
+  isolated: 0x888899
+};
+
+// packet colours per packet kind
+const PC = {
+  legit: 0x06d6a0, syn: 0xff6b81, amp: 0xff9f1c, brute: 0xff6b81,
+  exfil: 0xb388eb, inject: 0xff9f1c, steal: 0x9b5de5, spread: 0xffd166,
+  encrypt: 0xef476f, poison: 0xb388eb
+};
+
+// plain-English one-liners used in the device inspector
+const TYPE_ROLE = {
+  attacker: 'Attacker / threat source',
+  users: 'Legitimate users',
+  server: 'Server / application',
+  router: 'Router / gateway',
+  firewall: 'Firewall / filtering device',
+  database: 'Database / data store',
+  monitor: 'Monitoring / security tool',
+  workstation: 'Workstation / endpoint'
+};
+
+const ST_NOTE = {
+  normal: 'running normally',
+  warning: 'under strain',
+  critical: 'overloaded and close to failing',
+  down: 'not serving traffic',
+  compromised: "under the attacker's control",
+  isolated: 'cut off by you'
+};
+
+let paused = false;
+let pauseAt = 0;              // when we paused: live packets are frozen for that long
+let GLOSS = {};               // term -> short definition (drives the info clouds)
+let cool = {};                // term -> time before the same cloud may pop again
+
+// --- left rail: scenario list -------------------------------------
+function scenRender(items) {
+  const ord = ['Email', 'Identity', 'Network', 'Data', 'Endpoint'];
+  const by = {};
+  items.forEach(i => (by[i.cat] = by[i.cat] || []).push(i));
+
+  $('scen').innerHTML = ord
+    .filter(c => by[c])
+    .map(c => `<div class="cat">${c}</div>` +
+      by[c].map(s =>
+        `<button onclick="start('${s.id}')" title="${s.plain}">${s.name}<small>${s.desc}</small></button>`
+      ).join(''))
+    .join('');
+}
+
+// --- jargon clouds -------------------------------------------------
+// Keep at most three clouds on screen, each one for seven seconds.
+function popToast(term, def) {
+  const box = $('toasts');
+  if (box.children.length >= 3) box.firstChild.remove();
+
+  const d = document.createElement('div');
+  d.className = 'toast';
+  d.innerHTML = '<b></b><span></span>';
+  d.firstChild.textContent = term;
+  d.lastChild.textContent = def;
+  box.appendChild(d);
+  setTimeout(() => d.remove(), 7000);
+}
+
+// Whenever a log line mentions a glossary term, float its definition
+// over the range - but no more than once per term every 30 seconds.
+function jargon(line) {
+  const now = Date.now();
+  const low = line.toLowerCase();
+
+  for (const t in GLOSS) {
+    if ((cool[t] || 0) > now) continue;
+
+    const keys = [t, ...t.split('/')].map(s => s.trim()).filter(s => s.length > 2);
+    if (keys.some(k => low.includes(k.toLowerCase()))) {
+      cool[t] = now + 30000;
+      popToast(t, GLOSS[t]);
+      return;
+    }
+  }
+}
+
+// --- session controls ----------------------------------------------
+function pauseToggle() {
+  send({ type: paused ? 'resume' : 'pause' });
+}
+
+// Freeze every packet mid-flight on pause, then give the pause time
+// back on resume so they carry on from exactly where they stopped.
+function freezePackets(frozen) {
+  const now = performance.now();
+  if (frozen) {
+    pauseAt = now;
+  } else if (pauseAt) {
+    const gap = now - pauseAt;
+    pk.forEach(p => p.t0 += gap);
+    pauseAt = 0;
+  }
+}
+
+function send(o) {
+  ws && ws.readyState == 1 && ws.send(JSON.stringify(o));
+}
+
+function connect() {
+  ws = new WebSocket((location.protocol == 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
+  ws.onmessage = e => on(JSON.parse(e.data));
+  ws.onclose = () => setTimeout(connect, 1500);
+}
+
+function start(k) {
+  if (!ws || ws.readyState != 1) return log('Backend not connected yet - is the server running?', 'bad');
+  $('log').innerHTML = '';
+  $('modal').style.display = 'none';
+  send({ type: 'start', kind: k });
+}
+
+function log(m, c = '') {
+  const d = document.createElement('div');
+  d.className = c;
+  d.textContent = new Date().toLocaleTimeString().slice(0, 8) + ' ' + m;
+  $('log').appendChild(d);
+  $('log').scrollTop = 1e9;
+  jargon(m);
+}
+
+// --- messages coming from the backend ------------------------------
+function on(m) {
+  if (m.type == 'scenarios') scenRender(m.items);
+
+  if (m.type == 'glossary') {
+    // The chain itself lives in the jargon clouds now.
+    GLOSS = {};
+    m.terms.forEach(t => GLOSS[t.term] = t.defn);
+  }
+
+  if (m.type == 'init') {
+    build(m);
+    hist = [];
+    dur = m.duration;
+    paused = false;
+    pauseAt = 0;
+    $('sess').style.display = 'inline-flex';
+    $('pauseb').innerHTML = '&#9208; Pause';
+    $('acts').innerHTML = m.actions.map(a =>
+      `<button id="a_${a.id}" class="${a.pts < 0 ? 'trap' : ''}" onclick="act('${a.id}')" title="${a.plain || a.desc}">${a.label}<span class="pts">${a.pts > 0 ? '+' : ''}${a.pts}</span><small>${a.desc}</small></button>`
+    ).join('');
+    log('Scenario started: ' + m.name, 'ok');
+  }
+
+  if (m.type == 'paused') {
+    paused = m.paused;
+    freezePackets(paused);
+    $('pauseb').innerHTML = paused ? '&#9654; Resume' : '&#9208; Pause';
+    log(paused
+      ? 'Session paused - packets are frozen in place, click any device to inspect it.'
+      : 'Session resumed.');
+  }
+
+  if (m.type == 'aborted') {
+    $('sess').style.display = 'none';
+    $('acts').innerHTML = '<small style="color:#58688c">Pick a scenario to begin.</small>';
+    $('phase').textContent = '';
+    $('time').textContent = '';
+    log('Session ended.', 'warn');
+  }
+
+  if (m.type == 'quiz_start' || m.type == 'quiz') showQuiz(m);
+  if (m.type == 'quiz_check') showCheck(m);
+
+  if (m.type == 'tick') onTick(m);
+
+  if (m.type == 'result') log(m.msg, m.ok ? 'ok' : 'bad');
+
+  if (m.type == 'end') {
+    $('et').textContent = { success: 'SUCCESS', partial: 'PARTIAL', failure: 'FAILURE' }[m.outcome];
+    $('em').textContent = m.msg;
+    $('es').textContent = m.score + ' / ' + m.max;
+    $('ef').innerHTML = m.feedback.map(f =>
+      `<div class="fb ${f.k}">${f.k == 'missed' ? '<b>Missed:</b> ' : f.k == 'mistake' ? '<b>Mistake:</b> ' : ''}${f.text}</div>`
+    ).join('');
+    $('modal').style.display = 'flex';
+    $('quiz').style.display = 'none';
+    $('sess').style.display = 'none';
+  }
+}
+
+// One tick = half a second of simulated time.
+function onTick(m) {
+  if (m.dur) dur = m.dur;
+  $('phase').textContent = 'Phase: ' + m.phase;
+  $('time').textContent = m.t.toFixed(0) + 's / ' + dur + 's';
+  $('score').textContent = 'SCORE ' + m.score;
+
+  // 1. refresh every device: load, status and running traffic counters
+  for (const id in m.loads) {
+    const g = meshes[id];
+    if (!g) continue;
+
+    const prev = info[id] || {};
+    info[id] = {
+      load: m.loads[id],
+      status: m.status[id],
+      sent: prev.sent || 0,
+      recv: prev.recv || 0,
+      seen: prev.seen || []
+    };
+    g.m.material.color.setHex(ST[m.status[id]] || COL[g.type]);
+    g.m.scale.setScalar(1 + m.loads[id] * .6);
+  }
+
+  // 2. spawn the packets flying along the edges this tick
+  m.packets.forEach(p => {
+    const a = meshes[p.s], b = meshes[p.t];
+    if (!a || !b) return;
+
+    const s = new THREE.Mesh(
+      new THREE.SphereGeometry(.11, 8, 8),
+      new THREE.MeshBasicMaterial({ color: PC[p.k] || 0xffffff, transparent: true })
+    );
+    scene.add(s);
+    pk.push({ s, a: a.g.position, b: b.g.position, t0: performance.now(), stop: p.b ? .55 : 1 });
+
+    // count the packet against both ends so the inspector can show it
+    if (info[p.s]) info[p.s].sent++;
+    if (info[p.t]) info[p.t].recv++;
+  });
+
+  // 3. SIEM lines go to the log and to every device they name
+  m.events.forEach(e => {
+    log(e, /BREACH|SLA/.test(e) ? 'bad' : 'warn');
+    tagDevice(e);
+  });
+
+  // 4. chart, meters and stats
+  hist.push(m.chart);
+  if (hist.length > 70) hist.shift();
+  chart();
+
+  $('stats').innerHTML = m.stats.join('<br>');
+  $('meters').innerHTML = m.meters.map(x => {
+    const colour = x.inv
+      ? (x.v < .6 ? '#ff6b81' : x.v < .85 ? '#ffd166' : '#06d6a0')
+      : (x.v > .8 ? '#ff6b81' : x.v > .45 ? '#ffd166' : '#06d6a0');
+    return `<div class="m"><span>${x.l}<b>${Math.round(x.v * 100)}%</b></span><i><u style="width:${x.v * 100}%;background:${colour}"></u></i></div>`;
+  }).join('');
+
+  if (sel) inspect(sel);
+}
+
+// --- email training ------------------------------------------------
+function showQuiz(m) {
+  $('quiz').style.display = 'flex';
+  $('acts').innerHTML = '<small style="color:#58688c">Email game: pick Genuine, Phishing or Spam for each mail.</small>';
+  $('phase').textContent = 'Phase: Email training';
+  $('qbar').textContent = `Email ${(m.index || 0) + 1} / ${m.total}  -  correct so far: ${m.score}`;
+  $('qmail').textContent = 'From: ' + m.item.frm + '\nSubject: ' + m.item.subj + '\n\n' + m.item.body;
+  document.querySelectorAll('.qb').forEach(b => b.disabled = false);
+  $('qfeed').style.display = 'none';
+  $('qfeed').className = '';
+  $('qnext').style.display = 'none';
+}
+
+function ans(a) {
+  send({ type: 'quiz_answer', answer: a });
+  document.querySelectorAll('.qb').forEach(b => b.disabled = true);
+}
+
+function showCheck(m) {
+  const f = $('qfeed');
+  f.style.display = 'block';
+  f.className = m.correct ? '' : 'bad';
+  f.innerHTML = (m.correct
+    ? '<b style="color:#06d6a0">Correct!</b> '
+    : '<b style="color:#ef476f">No - it was ' + String(m.answer).toUpperCase() + '.</b> ') + m.clue;
+  $('score').textContent = 'SCORE ' + Math.round(m.score / m.total * 300);
+  $('qnext').style.display = 'block';
+}
+
+// Leave the quiz early: hide it, tell the backend, and put the
+// sidebar back to its idle state.
+function closeQuiz() {
+  send({ type: 'quiz_close' });
+  $('quiz').style.display = 'none';
+  $('qfeed').style.display = 'none';
+  $('phase').textContent = '';
+  $('acts').innerHTML = '<small style="color:#58688c">Pick a scenario to begin.</small>';
+  log('Email training closed.', 'warn');
+}
+
+// --- defensive actions ---------------------------------------------
+function act(id) {
+  send({ type: 'action', id });
+  const b = $('a_' + id);
+  if (b) b.disabled = true;
+}
+
+function iso() {
+  sel && send({ type: 'isolate', node: sel });
+}
+
+function exportLog() {
+  const txt = 'CYBERRANGE SESSION LOG\n=======================\n' + $('log').innerText;
+  const b = new Blob([txt], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(b);
+  a.download = 'cyberrange_session_' + new Date().toISOString().replace(/[:.]/g, '-') + '.log';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// --- traffic graph --------------------------------------------------
+function chart() {
+  const c = $('ch'), g = c.getContext('2d');
+  g.clearRect(0, 0, 280, 90);
+  const mx = Math.max(1, ...hist.map(h => Math.max(h[0], h[1])));
+
+  [[0, '#06d6a0'], [1, '#ff6b81'], [2, '#ff9f1c']].forEach(([k, col]) => {
+    g.beginPath();
+    g.strokeStyle = col;
+    hist.forEach((h, i) => {
+      const x = i * 280 / 69;
+      const y = 86 - h[k] / mx * 80;
+      i ? g.lineTo(x, y) : g.moveTo(x, y);
+    });
+    g.stroke();
+  });
+
+  g.fillStyle = '#58688c';
+  g.font = '9px monospace';
+  g.fillText('peak ' + Math.round(mx) + '/s', 4, 10);
+}
+
+// --- 3D range -------------------------------------------------------
+// Floating text label above a device.
+function txt(t) {
+  const c = document.createElement('canvas');
+  c.width = 256;
+  c.height = 48;
+  const x = c.getContext('2d');
+  x.fillStyle = '#e6edf7';
+  x.font = '22px sans-serif';
+  x.textAlign = 'center';
+  x.fillText(t, 128, 30);
+
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true }));
+  s.scale.set(2.4, .45, 1);
+  return s;
+}
+
+// Words we look for in SIEM lines to attach them to a device.
+function termsFor(n) {
+  const words = [n.label.toLowerCase(), n.id.toLowerCase()];
+  n.label.split(/[\s/()]+/).forEach(w => {
+    if (w.length > 2) words.push(w.toLowerCase());
+  });
+  return [...new Set(words)];
+}
+
+// Keep a short "what has been said about this device" feed.
+function tagDevice(line) {
+  const low = line.toLowerCase();
+
+  for (const id in meshes) {
+    const cell = info[id];
+    if (!cell || !meshes[id].terms.some(t => low.includes(t))) continue;
+
+    cell.seen.unshift(line);
+    if (cell.seen.length > 4) cell.seen.pop();
+  }
+}
+
+// Rebuild the whole scene for a freshly started scenario.
+function build(m) {
+  while (scene.children.length) scene.remove(scene.children[0]);
+  meshes = {};
+  info = {};
+  pk = [];
+
+  scene.add(new THREE.AmbientLight(0xffffff, .7));
+  const l = new THREE.PointLight(0xffffff, 1);
+  l.position.set(0, 8, 8);
+  scene.add(l);
+
+  const grid = new THREE.GridHelper(30, 30, 0x16233d, 0x16233d);
+  grid.position.y = -3.5;
+  scene.add(grid);
+
+  m.nodes.forEach(n => {
+    const g = new THREE.Group();
+    g.position.set(n.x, n.y, n.z);
+
+    let geo;
+    if (n.type == 'database') geo = new THREE.CylinderGeometry(.4, .4, .7, 20);
+    else if (n.type == 'firewall') geo = new THREE.BoxGeometry(.4, .9, .8);
+    else if (n.type == 'workstation') geo = new THREE.BoxGeometry(.6, .45, .5);
+    else geo = new THREE.SphereGeometry(.42, 24, 24);
+
+    const me = new THREE.Mesh(geo, new THREE.MeshPhongMaterial({ color: COL[n.type] || 0x888899, emissive: 0x111122 }));
+    me.userData.id = n.id;
+    g.add(me);
+
+    const t = txt(n.label);
+    t.position.y = .95;
+    g.add(t);
+
+    scene.add(g);
+    meshes[n.id] = { g, m: me, type: n.type, n, terms: termsFor(n) };
+  });
+
+  m.edges.forEach(e => {
+    const a = meshes[e.s].g.position;
+    const b = meshes[e.t].g.position;
+    scene.add(new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([a, b]),
+      new THREE.LineBasicMaterial({ color: 0x2a3b60 })
+    ));
+  });
+
+  sel = null;
+  $('nb').style.display = 'none';
+}
+
+// Device inspector: what it is, what state it is in, and what has
+// been happening around it - not just the isolate button.
+function inspect(id) {
+  const g = meshes[id];
+  if (!g) return;
+
+  const n = g.n;
+  const i = info[id] || { load: 0, status: 'normal', sent: 0, recv: 0, seen: [] };
+  sel = id;
+
+  const role = n.role || TYPE_ROLE[n.type] || n.type;
+  const note = ST_NOTE[i.status] || '';
+  const feed = i.seen.length
+    ? i.seen.map(e => `<div class="nb_ev">${e}</div>`).join('')
+    : '<div class="nb_ev quiet">Nothing reported for this device yet.</div>';
+
+  $('nb').style.display = 'block';
+  $('nn').textContent = n.label;
+  $('ni').innerHTML =
+    `${role}<br>` +
+    `<b>Status:</b> ${i.status} - ${note}<br>` +
+    `<b>Load:</b> ${Math.round(i.load * 100)}%<br>` +
+    `<b>Traffic:</b> ${i.sent} sent / ${i.recv} received<br>` +
+    `<b>Latest activity:</b>${feed}`;
+  $('nbtn').textContent = i.status == 'isolated' ? 'Reconnect device' : 'Isolate device';
+}
+
+// --- 3D setup: renderer, orbit camera, picking -----------------------
+const cv = $('cv');
+ren = new THREE.WebGLRenderer({ antialias: true });
+ren.setPixelRatio(Math.min(devicePixelRatio, 2));
+cv.prepend(ren.domElement);
+
+scene = new THREE.Scene();
+scene.background = new THREE.Color(0x050912);
+cam = new THREE.PerspectiveCamera(55, 1, .1, 100);
+
+let th = .2, ph = 1.2, r = 15;   // orbit angles + distance
+let drag = null, moved = 0;      // current drag gesture
+
+const rs = () => {
+  ren.setSize(cv.clientWidth, cv.clientHeight);
+  cam.aspect = cv.clientWidth / cv.clientHeight;
+  cam.updateProjectionMatrix();
+};
+new ResizeObserver(rs).observe(cv);
+
+ren.domElement.onpointerdown = e => {
+  drag = [e.clientX, e.clientY];
+  moved = 0;
+};
+
+onpointerup = e => {
+  if (drag && moved < 5) pick(e);   // a tap, not a drag: inspect the device under the cursor
+  drag = null;
+};
+
+onpointermove = e => {
+  if (!drag) return;
+  th -= (e.clientX - drag[0]) * .006;
+  ph = Math.min(2.8, Math.max(.3, ph - (e.clientY - drag[1]) * .006));
+  moved += Math.abs(e.movementX) + Math.abs(e.movementY);
+  drag = [e.clientX, e.clientY];
+};
+
+ren.domElement.onwheel = e => {
+  e.preventDefault();
+  r = Math.min(30, Math.max(6, r + e.deltaY * .01));
+};
+
+function pick(e) {
+  const b = ren.domElement.getBoundingClientRect();
+  const rc = new THREE.Raycaster();
+  rc.setFromCamera(
+    new THREE.Vector2((e.clientX - b.left) / b.width * 2 - 1, -(e.clientY - b.top) / b.height * 2 + 1),
+    cam
+  );
+
+  const h = rc.intersectObjects(Object.values(meshes).map(x => x.m));
+  if (h.length) inspect(h[0].object.userData.id);
+}
+
+// --- animation loop ---------------------------------------------------
+(function loop() {
+  requestAnimationFrame(loop);
+
+  cam.position.set(r * Math.sin(ph) * Math.sin(th), r * Math.cos(ph), r * Math.sin(ph) * Math.cos(th));
+  cam.lookAt(0, 0, 0);
+
+  // While paused the packets hold their exact spot, so you can orbit
+  // around and see where everything stopped.
+  const now = performance.now();
+  if (!paused) {
+    pk = pk.filter(p => {
+      const f = (now - p.t0) / 500;
+      if (f >= p.stop) {
+        scene.remove(p.s);
+        return false;
+      }
+      p.s.position.lerpVectors(p.a, p.b, f);
+      p.s.material.opacity = p.stop < 1 ? 1 - f / p.stop * .5 : 1;
+      return true;
+    });
+  }
+
+  if (scene.children.length) ren.render(scene, cam);
+})();
+
+connect();
+</script>
+</body>
+</html>
