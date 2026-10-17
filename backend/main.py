@@ -5,7 +5,7 @@ The backend also keeps two audit logs under logs/ (appended, never truncated):
   * siem_events.log      - every detection / action / milestone, wall-clock stamped
   * blocked_traffic.csv  - per-tick attack traffic vs what the defences blocked
 """
-import asyncio, csv, io, os, random, re
+import asyncio, csv, io, os, random, re, tempfile
 from datetime import datetime
 from pathlib import Path
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -18,9 +18,23 @@ E = lambda *p: [dict(s=a, t=b) for a, b in p]
 # --- server-side audit logging ------------------------------------------------
 # CYBERRANGE_LOGDIR is set by the packaged (exe/app) launcher so the audit
 # trail lands in a writable per-user folder; plain `python main.py` still
-# writes to the project's logs/ directory.
-LOGDIR = Path(os.environ.get("CYBERRANGE_LOGDIR") or Path(__file__).resolve().parent.parent / "logs")
-LOGDIR.mkdir(parents=True, exist_ok=True)
+# writes to the project's logs/ directory. Serverless hosts (Vercel, ...)
+# ship a read-only filesystem, so when that folder cannot be created or
+# written we fall back to the system temp dir instead of crashing at import.
+def _logdir():
+    p = Path(os.environ.get("CYBERRANGE_LOGDIR") or Path(__file__).resolve().parent.parent / "logs")
+    try:
+        p.mkdir(parents=True, exist_ok=True)
+        probe = p / ".write_probe"
+        probe.write_text("", encoding="utf-8")
+        probe.unlink()
+        return p
+    except OSError:
+        p = Path(tempfile.gettempdir()) / "cyberrange_logs"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+LOGDIR = _logdir()
 SIEM_LOG = LOGDIR / "siem_events.log"
 BLOCK_LOG = LOGDIR / "blocked_traffic.csv"
 _wall = lambda: datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -611,6 +625,7 @@ class Sim:
 app = FastAPI(title="CyberRange")
 
 @app.websocket("/ws")
+@app.websocket("/api/ws")  # hosts that prefix functions (Vercel) - ignored elsewhere
 async def ws(w: WebSocket):
     await w.accept()
     task = None
@@ -725,7 +740,11 @@ async def ws(w: WebSocket):
     finally:
         if task: task.cancel()
 
-app.mount("/", StaticFiles(directory=str(Path(__file__).parent.parent / "frontend"), html=True), name="ui")
+# Serve the UI from the same process; skipped when the folder is not shipped
+# alongside the code (a platform may serve it as static output instead).
+_ui = Path(__file__).resolve().parent.parent / "frontend"
+if _ui.is_dir():
+    app.mount("/", StaticFiles(directory=str(_ui), html=True), name="ui")
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
