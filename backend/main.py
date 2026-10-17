@@ -31,7 +31,10 @@ def _logdir():
         return p
     except OSError:
         p = Path(tempfile.gettempdir()) / "cyberrange_logs"
-        p.mkdir(parents=True, exist_ok=True)
+        try:
+            p.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            p = Path(tempfile.gettempdir())
         return p
 
 LOGDIR = _logdir()
